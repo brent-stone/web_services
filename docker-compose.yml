@@ -70,49 +70,49 @@ services:
       retries: 5
     restart: always
 
-  api:
-    # This starts GUnicorn without live-reload
-    command: /webservices/backend/start.sh
-    container_name: webservices-api
-    image: webservices-api
-    # env_file:
-    #   - .env
-    # The .env import function is nice, but let's explicitly have some redundant setting
-    # declaration for both clarity and error traceability by catching and reporting
-    # .env file issues as early in the stack execution as possible.
-    environment: *api-env
-    build: *api-build
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      celery:
-        condition: service_healthy
-      keycloak:
-        condition: service_healthy
-      proxy:
-        condition: service_started
-    healthcheck:
-      # Note: The INFO: logs that may appear in the logs are from FastAPI, not curl
-      test: [ "CMD-SHELL",
-              "curl --fail --silent http://localhost:8883/docs || exit 1" ]
-      interval: 5s
-      timeout: 5s
-      retries: 3
-      start_period: 5s
-    labels:
-      # Enable the service to be tracked by Traefik
-      - traefik.enable=true
-      # Associate the https-webservices-api router with the websecure TLS entrypoint at
-      # 'api.localhost'
-      - traefik.http.routers.https-webservices-api.entrypoints=websecure
-      - traefik.http.routers.https-webservices-api.tls=true
-      - traefik.http.routers.https-webservices-api.rule=Host(`api.localhost`) || (PathPrefix(`/v1`) || PathPrefix(`/docs`))
-      # - traefik.constraint-label-stack=${TRAEFIK_TAG?Variable not set}
-
-      # Use the CORS middleware declared as part of the Proxy for the https-webservices-api router
-      - traefik.http.routers.https-webservices-api.middlewares=cors@docker
+#  api:
+#    # This starts GUnicorn without live-reload
+#    command: /webservices/backend/start.sh
+#    container_name: webservices-api
+#    image: webservices-api
+#    # env_file:
+#    #   - .env
+#    # The .env import function is nice, but let's explicitly have some redundant setting
+#    # declaration for both clarity and error traceability by catching and reporting
+#    # .env file issues as early in the stack execution as possible.
+#    environment: *api-env
+#    build: *api-build
+#    depends_on:
+#      db:
+#        condition: service_healthy
+#      redis:
+#        condition: service_healthy
+#      celery:
+#        condition: service_healthy
+#      keycloak:
+#        condition: service_healthy
+#      proxy:
+#        condition: service_started
+#    healthcheck:
+#      # Note: The INFO: logs that may appear in the logs are from FastAPI, not curl
+#      test: [ "CMD-SHELL",
+#              "curl --fail --silent http://localhost:8883/docs || exit 1" ]
+#      interval: 5s
+#      timeout: 5s
+#      retries: 3
+#      start_period: 5s
+#    labels:
+#      # Enable the service to be tracked by Traefik
+#      - traefik.enable=true
+#      # Associate the https-webservices-api router with the websecure TLS entrypoint at
+#      # 'api.localhost'
+#      - traefik.http.routers.https-webservices-api.entrypoints=websecure
+#      - traefik.http.routers.https-webservices-api.tls=true
+#      - traefik.http.routers.https-webservices-api.rule=Host(`api.localhost`) || (PathPrefix(`/v1`) || PathPrefix(`/docs`))
+#      # - traefik.constraint-label-stack=${TRAEFIK_TAG?Variable not set}
+#
+#      # Use the CORS middleware declared as part of the Proxy for the https-webservices-api router
+#      - traefik.http.routers.https-webservices-api.middlewares=cors@docker
 
   keycloak:
     command: start --import-realm
