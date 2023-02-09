@@ -1,0 +1,276 @@
+version: "3.8"
+
+# Environment variable configuration anchor for the services based on the /backend
+x-api-env: &api-env
+  DEBUG: "${DEBUG:?missing .env file with DEBUG}"
+  LOG_LEVEL: "${LOG_LEVEL:?missing .env file with LOG_LEVEL}"
+
+  PROJECT_NAME: "${PROJECT_NAME:?missing .env file with PROJECT_NAME}"
+  PROJECT_VERSION: "${PROJECT_VERSION:?missing .env file with PROJECT_VERSION}"
+  DEFAULT_USERNAME: "${DEFAULT_USERNAME:?missing .env file with DEFAULT_USERNAME}"
+  DEFAULT_USER_PASS: "${DEFAULT_USER_PASS:?missing .env file with DEFAULT_USER_PASS}"
+  DEFAULT_EMAIL: "${DEFAULT_EMAIL:?missing .env file with DEFAULT_EMAIL}"
+
+  SECRET_KEY: "${SECRET_KEY:?missing .env file with SECRET_KEY}"
+  HASH_ALGORITHM: "${HASH_ALGORITHM:?missing .env file with HASH_ALGORITHM}"
+  ACCESS_TOKEN_EXPIRE_MINUTES: "${ACCESS_TOKEN_EXPIRE_MINUTES:?missing .env file with ACCESS_TOKEN_EXPIRE_MINUTES}"
+  BACKEND_CORS_ORIGINS: "${BACKEND_CORS_ORIGINS:?missing .env file with BACKEND_CORS_ORIGINS}"
+
+  POSTGRES_USER: "${POSTGRES_USER:?missing .env file with POSTGRES_USER}"
+  POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?missing .env file with POSTGRES_PASSWORD}"
+  POSTGRES_DB: "${POSTGRES_DB:?missing .env file with POSTGRES_DB}"
+  POSTGRES_SERVER: "${POSTGRES_SERVER:?missing .env file with POSTGRES_SERVER}"
+  POSTGRES_PORT: "${POSTGRES_PORT:?missing .env file with POSTGRES_PORT}"
+
+  CELERY_BROKER_URL: "${CELERY_BROKER_URL:?missing .env file with CELERY_BROKER_URL}"
+  CELERY_RESULT_BACKEND: "${CELERY_RESULT_BACKEND:?missing .env file with CELERY_RESULT_BACKEND}"
+
+  # With the exception of KEYCLOAK_ADMIN and KEYCLOAK_ADMIN_PASSWORD, all variables
+  # like KC_* are 'official' keycloak configs. All other configs are bespoke to this
+  # orchestration and unrelated to the official keycloak configuration settings.
+  # KEYCLOAK_HOSTNAME is the hostname OTHER services use to refer to the keycloak service
+  KEYCLOAK_HOSTNAME: "${KEYCLOAK_HOSTNAME:?missing .env file with KEYCLOAK_HOSTNAME}"
+  KC_HTTPS_PORT: "${KC_HTTPS_PORT:?missing .env file with KC_HTTPS_PORT}"
+  # NOTE: This secret key is referenced in the Keycloak realm backup file. Be sure to
+  # update any changes to this field in the keycloak/realm_backup/realm-export.json file.
+  KEYCLOAK_CLIENT_SECRET_KEY: "${KEYCLOAK_CLIENT_SECRET_KEY:?missing .env file with KEYCLOAK_CLIENT_SECRET_KEY}"
+  KEYCLOAK_LOGIN_WAIT_SEC: "${KEYCLOAK_LOGIN_WAIT_SEC:?missing .env file with KEYCLOAK_LOGIN_WAIT_SEC}"
+  KEYCLOAK_LOGIN_RETRY_COUNT: "${KEYCLOAK_LOGIN_RETRY_COUNT:?missing .env file with KEYCLOAK_LOGIN_RETRY_COUNT}"
+
+# Build configuration anchor for the services based on the /backend
+x-api-build: &api-build
+  context: ./backend
+  dockerfile: Dockerfile
+  target: production
+
+services:
+  db:
+    container_name: webservices-db
+    image: webservices-db
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+      target: production
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:?missing .env file with POSTGRES_USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?missing .env file with POSTGRES_PASSWORD}"
+      POSTGRES_DB: "${POSTGRES_DB:?missing .env file with POSTGRES_DB}"
+      # Non-standard environment variables not directly expected by the postgres docker
+      # image but called by the scripts mounted from /postgres to create additional
+      # users and databases at initialization.
+      KC_DB_URL_DATABASE: "${KC_DB_URL_DATABASE:?missing .env file with KC_DB_URL_DATABASE}"
+      KC_DB_USERNAME: "${KC_DB_USERNAME:?missing .env file with KC_DB_USERNAME}"
+      KC_DB_PASSWORD: "${KC_DB_PASSWORD:?missing .env file with KC_DB_PASSWORD}"
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-U", "${POSTGRES_USER}" ]
+      interval: 5s
+      timeout: 30s
+      retries: 5
+    restart: always
+
+  api:
+    # This starts GUnicorn without live-reload
+    command: /webservices/backend/start.sh
+    container_name: webservices-api
+    image: webservices-api
+    # env_file:
+    #   - .env
+    # The .env import function is nice, but let's explicitly have some redundant setting
+    # declaration for both clarity and error traceability by catching and reporting
+    # .env file issues as early in the stack execution as possible.
+    environment: *api-env
+    build: *api-build
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      celery:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      proxy:
+        condition: service_started
+    healthcheck:
+      # Note: The INFO: logs that may appear in the logs are from FastAPI, not curl
+      test: [ "CMD-SHELL",
+              "curl --fail --silent http://localhost:8883/docs || exit 1" ]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    labels:
+      # Enable the service to be tracked by Traefik
+      - traefik.enable=true
+      # Associate the https-webservices-api router with the websecure TLS entrypoint at
+      # 'api.localhost'
+      - traefik.http.routers.https-webservices-api.entrypoints=websecure
+      - traefik.http.routers.https-webservices-api.tls=true
+      - traefik.http.routers.https-webservices-api.rule=Host(`api.localhost`) || (PathPrefix(`/v1`) || PathPrefix(`/docs`))
+      # - traefik.constraint-label-stack=${TRAEFIK_TAG?Variable not set}
+
+      # Use the CORS middleware declared as part of the Proxy for the https-webservices-api router
+      - traefik.http.routers.https-webservices-api.middlewares=cors@docker
+
+  keycloak:
+    command: start --import-realm
+    build:
+      context: ./keycloak
+      dockerfile: Dockerfile
+      target: production
+    container_name: webservices-keycloak
+    image: webservices-keycloak
+    environment:
+      # Documentation of available environment variables available at
+      # https://www.keycloak.org/server/all-config
+      # With the exception of KEYCLOAK_ADMIN and KEYCLOAK_ADMIN_PASSWORD, all variables
+      # like KC_* are 'official' configs. All other configs are bespoke to this
+      # orchestration and unrelated to the official keycloak configuration settings.
+
+      # Database configuration
+      KC_DB: "${KC_DB:?missing .env file with KC_DB}"
+      KC_DB_USERNAME: "${KC_DB_USERNAME:?missing .env file with KC_DB_USERNAME}"
+      KC_DB_PASSWORD: "${KC_DB_PASSWORD:?missing .env file with KC_DB_PASSWORD}"
+      KC_DB_URL_HOST: "${KC_DB_URL_HOST:?missing .env file with KC_DB_URL_HOST}"
+      KC_DB_URL_PORT: "${KC_DB_URL_PORT:?missing .env file with KC_DB_URL_PORT}"
+      KC_DB_URL_DATABASE: "${KC_DB_URL_DATABASE:?missing .env file with KC_DB_URL_DATABASE}"
+      KC_DB_SCHEMA: "${KC_DB_SCHEMA:?missing .env file with KC_DB_SCHEMA}"
+
+      # Default account setup
+      KEYCLOAK_ADMIN: "${KEYCLOAK_ADMIN:?missing .env file with KEYCLOAK_ADMIN}"
+      KEYCLOAK_ADMIN_PASSWORD: "${KEYCLOAK_ADMIN_PASSWORD:?missing .env file with KEYCLOAK_ADMIN_PASSWORD}"
+
+      # Uncomment the line below if you want to specify JDBC parameters. The parameter
+      # below is just an example, and it shouldn't be used in production without knowledge.
+      # It is highly recommended that you read the PostgreSQL JDBC driver documentation
+      # in order to use it.
+      #JDBC_PARAMS: "ssl=true"
+
+      # Health, Logging, and Feature configuration adjustments
+      KC_TRANSACTION_XA_ENABLED: "${KC_TRANSACTION_XA_ENABLED:?missing .env file with KC_TRANSACTION_XA_ENABLED}"
+      KC_HEALTH_ENABLED: "${KC_HEALTH_ENABLED:?missing .env file with KC_HEALTH_ENABLED}"
+      KC_METRICS_ENABLED: "${KC_METRICS_ENABLED:?missing .env file with KC_METRICS_ENABLED}"
+      KC_FEATURES: "${KC_FEATURES:?missing .env file with KC_FEATURES}"
+      KC_LOG_LEVEL: "${LOG_LEVEL:?missing .env file with LOG_LEVEL}"
+
+      # Hostname configuration
+      # KC_HOSTNAME sets keycloak's internal understanding of what it thinks its hostname is
+      # This is mutually exclusive with KC_HOSTNAME_URL.
+      KC_HOSTNAME: "${KC_HOSTNAME:?missing .env file with KC_HOSTNAME}"
+#      KC_HOSTNAME_URL: "https://keycloak.localhost"
+      KC_HTTPS_CERTIFICATE_FILE: "${KC_HTTPS_CERTIFICATE_FILE:?missing .env file with KC_HTTPS_CERTIFICATE_FILE}"
+      KC_HTTPS_CERTIFICATE_KEY_FILE: "${KC_HTTPS_CERTIFICATE_KEY_FILE:?missing .env file with KC_HTTPS_CERTIFICATE_KEY_FILE}"
+      KC_HTTPS_TRUST_STORE_PASSWORD: "${KC_HTTPS_TRUST_STORE_PASSWORD:?missing .env file with KC_HTTPS_TRUST_STORE_PASSWORD}"
+      KC_HTTPS_PORT: "${KC_HTTPS_PORT:?missing .env file with KC_HTTPS_PORT}"
+
+      # Reverse Proxy configuration
+      KC_PROXY: "passthrough"
+
+      # Client and identity provider configuration
+      # NOTE: These secret keys are referenced in the Keycloak realm backup file. Be sure to
+      # update any changes to these fields in the keycloak/realm_backup/real-export.json file.
+      KEYCLOAK_CLIENT_SECRET_KEY: "${KEYCLOAK_CLIENT_SECRET_KEY:?missing .env file with KEYCLOAK_CLIENT_SECRET_KEY}"
+      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET:?missing .env file with GOOGLE_CLIENT_SECRET}"
+      GITHUB_CLIENT_SECRET: "${GITHUB_CLIENT_SECRET:?missing .env file with GITHUB_CLIENT_SECRET}"
+    ports:
+#       Default keycloak ports are 8080 for http and 8443 for https
+#       http is disabled unless using start-dev command. It's recommended to only use HTTPS
+      - target: "${KC_HTTPS_PORT:?missing .env file with KC_HTTPS_PORT}"
+#        published: "${KC_HTTPS_PORT:?missing .env file with KC_HTTPS_PORT}"
+        mode: host
+    volumes:
+      - ./certs/webservices.crt:${KC_HTTPS_CERTIFICATE_FILE}
+      - ./certs/webservices.key:${KC_HTTPS_CERTIFICATE_KEY_FILE}
+      # This folder is what --import-realm reads from to load json realm configs
+      - ./keycloak/realm_backup:/opt/keycloak/data/import
+    depends_on:
+      db:
+        condition: service_healthy
+      proxy:
+        condition: service_started
+    healthcheck:
+      test: [ "CMD-SHELL",
+              "curl https://localhost:57444/health/ready --insecure --fail --silent || exit 1" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    labels:
+      # Enable the service to be tracked by Traefik
+      - traefik.enable=true
+      # TLS passthrough requires a TCP entrypoint. TCP entrypoints require a service
+      # declaration.
+      # https://doc.traefik.io/traefik/routing/routers/#passthrough
+      - traefik.tcp.services.webservices-keycloak.loadbalancer.server.port=${KC_HTTPS_PORT:?missing .env file with KC_HTTPS_PORT}
+      # Associate the keycloak router with the webservices-keycloak TCP entrypoint at
+      # 'keycloak.localhost'
+      - traefik.tcp.routers.keycloak.service=webservices-keycloak
+      - traefik.tcp.routers.keycloak.rule=HostSNI(`keycloak.localhost`)
+      - traefik.tcp.routers.keycloak.tls.passthrough=true
+
+  proxy:
+    image: traefik:2.9
+    container_name: webservices-proxy
+    volumes:
+      # Enable communication between Traefik and the docker daemon
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Pull in the static configuration
+      - ./traefik_certificates.yaml:/etc/traefik/dynamic_conf/traefik_certificates.yaml:ro
+      # Mount certificates
+      - ./certs:/etc/certs:ro
+    ports:
+      - target: 443
+        published: 443
+    command:
+      # Traefik Environment Variables
+      # https://doc.traefik.io/traefik/reference/static-configuration/env/
+      # Guide for Setup with Let's Encrypt CA Provider:
+      # https://doc.traefik.io/traefik/user-guides/docker-compose/acme-tls/
+      # Define entrypoints for HTTP and HTTPS
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      # Trust headers forwarded by Keycloak
+      # https://www.keycloak.org/server/reverseproxy
+      # https://doc.traefik.io/traefik/v2.3/routing/entrypoints/#forwarded-headers
+      - --entryPoints.web.forwardedHeaders.insecure
+      - --entryPoints.websecure.forwardedHeaders.insecure
+      # The more specific trustIPs approach below may be used instead of the above
+      # check setting used above.
+#      - --entryPoints.web.forwardedHeaders.trustedIPs=127.0.0.1/32,192.168.1.7
+      # Enable HTTPS redirection from 80 to 443
+      - --entrypoints.web.http.redirections.entryPoint.to=websecure
+      - --entrypoints.web.http.redirections.entryPoint.scheme=https
+      # Enable Docker in Traefik, so that it reads labels from Docker services
+      - --providers.docker=true
+      # Do not expose all Docker services, only the ones explicitly exposed
+      - --providers.docker.exposedbydefault=false
+      # Add a watch for the certificates
+      - providers.file.directory=/etc/traefik/dynamic_conf/
+      - providers.file.watch=true
+      # Enable the Dashboard
+#      - --api=true
+#      - --api.insecure=true
+#      - --api.dashboard=true
+      # Enable the access log (HTTP requests) and Traefik log (configs and errors)
+      - --log.level=${LOG_LEVEL:?missing .env file with LOG_LEVEL}
+      - --accesslog
+      - --log
+
+    labels:
+      # Enable Traefik for this service, to make it available in the public network
+      - traefik.enable=true
+
+      # CORS Headers settings
+      - traefik.http.middlewares.cors.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,DELETE,POST
+      - traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=${BACKEND_CORS_ORIGINS_TRAEFIK:?missing .env file with BACKEND_CORS_ORIGINS_TRAEFIK}
+      - traefik.http.middlewares.cors.headers.accesscontrolallowheaders=*
+      - traefik.http.middlewares.cors.headers.accesscontrolmaxage=100
+      - traefik.http.middlewares.cors.headers.accesscontrolallowcredentials=true
+      - traefik.http.middlewares.cors.headers.addvaryheader=true
+#      - traefik.tcp.middlewares.tcp-cors.ipwhitelist.sourcerange=127.0.0.1/32, 192.168.1.7
+
+volumes:
+  postgres-db-volume:
+  redis-volume:

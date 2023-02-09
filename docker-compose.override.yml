@@ -1,0 +1,33 @@
+services:
+  adminer:
+    image: adminer
+    container_name: autoai-adminer-dev
+    restart: always
+    ports:
+      - target: 8080
+#        published: "${ADMINER_PORT:?missing .env file with ADMINER_PORT}"
+        mode: host
+    depends_on:
+      db:
+        condition: service_healthy
+      proxy:
+        condition: service_started
+    labels:
+      # Enable the service to be tracked by Traefik
+      - traefik.enable=true
+      # Associate the https-autoai-db router with the websecure TLS entrypoint at
+      # 'db.localhost'
+      - traefik.http.routers.https-autoai-db.entrypoints=websecure
+      - traefik.http.routers.https-autoai-db.tls=true
+      - traefik.http.routers.https-autoai-db.rule=Host(`db.localhost`)
+      - traefik.constraint-label-stack=${TRAEFIK_TAG?Variable not set}
+
+      # Use the CORS middleware declared as part of the Proxy for the https-autoai-db router
+      - traefik.http.routers.https-autoai-db.middlewares=cors@docker
+
+  # re-enable if there's a need for external direct DB access to run tests, alembic migrations, etc.
+#  db:
+#    ports:
+#      - target: 5432
+#        published: "${POSTGRES_PORT:?missing .env file with POSTGRES_PORT}"
+#        mode: host

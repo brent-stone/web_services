@@ -1,0 +1,2 @@
+# Place automatically generated self-signed certificated in this folder.
+# This should have both the .crt public key and .key private key

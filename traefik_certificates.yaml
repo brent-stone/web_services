@@ -1,0 +1,5 @@
+# Traefik Dynamic Configuration
+tls:
+  certificates:
+    - certFile: /etc/certs/webservices.crt
+      keyFile: /etc/certs/webservices.key
