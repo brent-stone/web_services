@@ -1,7 +1,7 @@
 #! /usr/bin/env sh
 set -e
 
-DEFAULT_MODULE_NAME=autoai.main
+DEFAULT_MODULE_NAME=webservices.main
 
 MODULE_NAME=${MODULE_NAME:-$DEFAULT_MODULE_NAME}
 VARIABLE_NAME=${VARIABLE_NAME:-app}

@@ -21,11 +21,11 @@ fi
 declare -a PathArray=(
   ".env" \
   "./backend/.test.env" \
-  "./certs/autoai.crt" \
-  "./certs/autoai.key" \
-  "./keycloak/certs/autoai.crt" \
-  "./keycloak/certs/autoai.key" \
-  "./backend/autoai/core/certs/autoai.crt" \
+  "./certs/webservices.crt" \
+  "./certs/webservices.key" \
+  "./keycloak/certs/webservices.crt" \
+  "./keycloak/certs/webservices.key" \
+  "./backend/webservices/core/certs/webservices.crt" \
 )
 # Iterate over the paths and remove the files if present
 # The [@] operator is get all elements, space-separated

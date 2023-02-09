@@ -7,9 +7,9 @@ SWARM_YAML=$(docker compose config)
 {
   echo 'version: "3.8"';
   echo '# Initialize swarm with "docker swarm init"';
-  echo '# Run swarm with "docker stack deploy -c stack_config.yml autoai-stack"';
-  echo '# Shutdown the stack with "docker stack rm autoai-stack"';
-  echo '# See stack status with "docker stack ps autoai-stack"';
+  echo '# Run swarm with "docker stack deploy -c stack_config.yml webservices-stack"';
+  echo '# Shutdown the stack with "docker stack rm webservices-stack"';
+  echo '# See stack status with "docker stack ps webservices-stack"';
   echo '# If you need to go back to docker compose, totally shutdown swarm with "docker swarm leave --force"';
   echo '#   That will free up ports that were reserved by the swarm deployment';
   echo '# IMPORTANT! Be sure to do these before starting the stack the first time';

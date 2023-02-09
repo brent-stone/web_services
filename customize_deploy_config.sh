@@ -8,7 +8,7 @@ set -e
 Help()
 {
    # Display Help
-   echo "Customize the AutoAI deployment configuration."
+   echo "Customize the WebServices deployment configuration."
    echo
    echo "Syntax: customize [-h|-p|-d]"
    echo "options:"
@@ -47,7 +47,7 @@ NC='\033[0m' # No Color
 
 confirm() {
   # Ensure there's understanding that existing configs and keys will be replaced
-  echo -e "Except for passwords and secrets, all current AutoAI deployment configurations \
+  echo -e "Except for passwords and secrets, all current WebServices deployment configurations \
 and keys will be ${RED}deleted and replaced with defaults or provided values.${NC}"
   read -r -p "Proceed? [y/N] " response
   # Exit if response anything other than a string explicitly starting with y or Y

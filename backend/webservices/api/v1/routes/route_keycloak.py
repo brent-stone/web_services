@@ -1,14 +1,14 @@
 """
 Keycloak client routes
 """
-from autoai.api.v1.routes.route_login import get_current_user_from_token
-from autoai.core.config import core_config
-from autoai.core.config import keycloak_client
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
 from fastapi import status
 from jose.exceptions import JWTError
+from webservices.api.v1.routes.route_login import get_current_user_from_token
+from webservices.core.config import core_config
+from webservices.core.config import keycloak_client
 
 from keycloak import KeycloakConnectionError
 
@@ -24,7 +24,7 @@ async def get_keycloak_auth_redirect(
 ) -> dict:
     """
     Return the Keycloak webapp adaptor config JSON. This config was retrieved from the
-    Keycloak admin interface under the AutoAI realm > autoai_webapp > Action > download
+    Keycloak admin interface under the WebServices realm > webservices_webapp > Action > download
     adaptor configs
 
     Documentation about using this config with the Keycloak JavaScript adapter:
@@ -42,7 +42,7 @@ async def get_keycloak_auth_redirect(
 async def get_keycloak_config(access_token: str) -> dict:
     """
     Return the Keycloak webapp adaptor config JSON. This config was retrieved from the
-    Keycloak admin interface under the AutoAI realm > autoai_webapp > Action > download
+    Keycloak admin interface under the WebServices realm > webservices_webapp > Action > download
     adaptor configs
 
     Documentation about using this config with the Keycloak JavaScript adapter:

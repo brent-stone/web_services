@@ -47,16 +47,16 @@ class KeycloakTokenDecoded(BaseModel):
     exp: int  # 1671390440
     iat: int  # 1671390140
     jti: str  # c6c84adc-8865-4d6e-b5fb-348d43ab28e9
-    iss: str  # https://localhost:57444/realms/AutoAI
+    iss: str  # https://keycloak.localhost/realms/WebServices
     aud: str  # account
     sub: str  # e50a3-84d6-44d1-bfb3-419156de88c7
     typ: str  # Bearer
-    azp: str  # autoai_api
+    azp: str  # webservices_api
     session_state: str  # 49aef4f2-6850-41cb-bb02-159eb300e980
     acr: int  # 1
     # ['http://localhost:57080/*', 'http://localhost:57444/*', 'http://localhost:57073/*']
     allowed_origins: List[str] = Field(alias="allowed-origins")
-    # {'roles': ['offline_access', 'uma_authorization', 'default-roles-autoai']}
+    # {'roles': ['offline_access', 'uma_authorization', 'default-roles-webservices']}
     realm_access: Dict[str, List[str]]
     # {'account': {'roles': ['manage-account', 'manage-account-links', 'view-profile']}}
     resource_access: Dict[str, Dict[str, List[str]]]

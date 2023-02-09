@@ -1,7 +1,7 @@
 services:
   adminer:
     image: adminer
-    container_name: autoai-adminer-dev
+    container_name: webservices-adminer-dev
     restart: always
     ports:
       - target: 8080
@@ -15,15 +15,15 @@ services:
     labels:
       # Enable the service to be tracked by Traefik
       - traefik.enable=true
-      # Associate the https-autoai-db router with the websecure TLS entrypoint at
+      # Associate the https-webservices-db router with the websecure TLS entrypoint at
       # 'db.localhost'
-      - traefik.http.routers.https-autoai-db.entrypoints=websecure
-      - traefik.http.routers.https-autoai-db.tls=true
-      - traefik.http.routers.https-autoai-db.rule=Host(`db.localhost`)
+      - traefik.http.routers.https-webservices-db.entrypoints=websecure
+      - traefik.http.routers.https-webservices-db.tls=true
+      - traefik.http.routers.https-webservices-db.rule=Host(`db.localhost`)
       - traefik.constraint-label-stack=${TRAEFIK_TAG?Variable not set}
 
-      # Use the CORS middleware declared as part of the Proxy for the https-autoai-db router
-      - traefik.http.routers.https-autoai-db.middlewares=cors@docker
+      # Use the CORS middleware declared as part of the Proxy for the https-webservices-db router
+      - traefik.http.routers.https-webservices-db.middlewares=cors@docker
 
   # re-enable if there's a need for external direct DB access to run tests, alembic migrations, etc.
 #  db:

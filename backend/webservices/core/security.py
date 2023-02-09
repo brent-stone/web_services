@@ -3,10 +3,10 @@ from datetime import timedelta
 from logging import getLogger
 from typing import Optional
 
-from autoai.core.config import core_config
 from email_validator import EmailNotValidError
 from email_validator import validate_email
 from jose import jwt
+from webservices.core.config import core_config
 
 logger = getLogger(__name__)
 

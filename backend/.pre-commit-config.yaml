@@ -109,7 +109,7 @@ repos:
 #    hooks:
 #    -   id: pytest
 #        name: Check pytest with coverage passes
-#        entry: poetry run pytest --cov=autoai
+#        entry: poetry run pytest --cov=webservices
 #        pass_filenames: false
 #        language: system
 #        types: [python]
