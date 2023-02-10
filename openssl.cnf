@@ -1,0 +1,85 @@
+# From example at
+# https://unix.stackexchange.com/questions/288517/how-to-make-self-signed-certificate-for-localhost
+# OpenSSL config example at
+# https://github.com/openssl/openssl/blob/master/apps/openssl.cnf
+
+[ req ]
+default_bits        = 4096
+default_keyfile     = webservices.pem
+distinguished_name  = req_distinguished_name
+req_extensions      = v3_req
+x509_extensions     = usr_cert
+string_mask         = utf8only
+prompt              = no
+
+[ req_distinguished_name ]
+countryName         = US
+stateOrProvinceName = Oregon
+localityName        = Portland
+organizationName    = ARCYBER
+emailAddress        = contact@webservices.com
+
+# Use a friendly name here because it's presented to the user. The server's DNS
+#   names are placed in Subject Alternate Names. Plus, DNS names here is deprecated
+#   by both IETF and CA/Browser Forums. If you place a DNS name here, then you
+#   must include the DNS name in the SAN too (otherwise, Chrome and others that
+#   strictly follow the CA/Browser Baseline Requirements will fail).
+commonName           = ARCYBER
+
+# [ EXT ]
+# subjectAltName      = @alternate_names
+# keyUsage            = digitalSignature
+# extendedKeyUsage    = serverAuth
+
+[ usr_cert ]
+# Section usr_cert is used when generating a self-signed certificate. I.e., openssl req -x509 ...
+# These extensions are added when 'ca' signs a request.
+
+# This goes against PKIX guidelines but some CAs do it and some software
+# requires this to avoid interpreting an end user certificate as a CA.
+basicConstraints        = CA:FALSE
+
+# This is typical in keyUsage for a client certificate.
+# keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+keyUsage                = digitalSignature
+
+# PKIX recommendations harmless if included in all certificates.
+subjectKeyIdentifier    = hash
+authorityKeyIdentifier  = keyid,issuer
+
+# Include email address in subject alt name: another PKIX recommendation
+subjectAltName      = @alternate_names
+
+# This is required for Time Stamping Authority certificates.
+# RFC 5280, Section 4.2.1.12 makes EKU optional
+# CA/Browser Baseline Requirements, Appendix (B)(3)(G) may conflict
+# extendedKeyUsage  = serverAuth, clientAuth
+extendedKeyUsage    = serverAuth
+
+[ v3_req ]
+# Section v3_req is used when generating a certificate signing request. I.e., openssl req ...
+
+basicConstraints = CA:FALSE
+keyUsage = digitalSignature
+
+[ alternate_names ]
+
+DNS.1       = localhost
+DNS.2       = keycloak.localhost
+DNS.3       = api.localhost
+DNS.4       = webservices.localhost
+DNS.5       = db.localhost
+DNS.6       = flower.localhost
+DNS.7       = 127.0.0.1
+DNS.8       = keycloak
+DNS.9       = api
+DNS.10      = db
+# IPv6 localhost
+DNS.11      = ::1
+DNS.12      = fe80::1
+
+# Add these if you need them. But usually you don't want them or
+#   need them in production. You may need them for development.
+# DNS.4       = localhost.localdomain
+# DNS.5       = 127.0.0.1
+
